@@ -1,0 +1,13 @@
+# .gitignore 
+config.py
+setup.sh
+
+data
+public_analysis_code
+pypreprocess
+
+
+
+__pycache__/
+
+
