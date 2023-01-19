@@ -1,6 +1,9 @@
 # .gitignore 
 config.py
 setup.sh
+pyscript.m
+h2jupynb
+scratch.ipynb
 
 data
 public_analysis_code
@@ -9,5 +12,6 @@ pypreprocess
 
 
 __pycache__/
+.ipynb_checkpoints/
 
 
