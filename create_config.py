@@ -3,12 +3,15 @@ import os
 from configobj import ConfigObj
 from glob import glob
 
+# make derivatives folder
+os.makedirs('data/derivatives', exist_ok=True)
+
 # Set config variables
 config_mod_dir = 'preprocess/pipeline_config/modified'
-data_base_dir = 'data'
-output_dir = 'data/derivatives'
+data_base_dir = '/data'
+output_dir = '/data/derivatives'
 fwhm = ['[3', '3', '3]']
-scratch_dir='data/tmp'
+scratch_dir='/data/tmp'
 
 ini_fps = glob('preprocess/pipeline_config/original/*.ini')
 
