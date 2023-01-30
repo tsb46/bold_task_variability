@@ -28,8 +28,7 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
     prepare_derivatives(main_dir)
 
     # Get subjects-sessions that belong to protocol
-    # subject_session = get_subject_session(protocol)
-    subject_session_func = [('sub-01', 'ses-03'), ('sub-02', 'ses-04')]
+    subject_session = get_subject_session(protocol)
 
     # Pull config obj
     cobj = ConfigObj(f'preprocess/pipeline_config/IBC_preproc_{protocol}.ini')
@@ -48,14 +47,14 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
                          slicetime=f'{cache_dir}/{protocol}_timing.txt')
 
 
-    # # Apply FSL TOPUP Distortion Correction
-    # acq = None
-    # if protocol in ['rs']:
-    #     acq = 'mb6'
-    # elif protocol in ['mtt1', 'mtt2']:
-    #     acq = 'mb3'
+    # Apply FSL TOPUP Distortion Correction
+    acq = None
+    if protocol in ['rs']:
+        acq = 'mb6'
+    elif protocol in ['mtt1', 'mtt2']:
+        acq = 'mb3'
 
-    # apply_topup(main_dir, cache_dir, subject_session, acq)
+    apply_topup(main_dir, cache_dir, subject_session, acq)
 
     # Set templates for finding functional and anatomical (T1) files
     func_file = os.path.abspath('data/derivatives/%s/%s/func/dcsub*bold.nii.gz')
@@ -88,14 +87,10 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
     pool.starmap(run_anat_preproc, zip(anat_list, subject_session_func, 
                                        repeat(json_cache), repeat(output_dir), 
                                        repeat(protocol)))
-    # run_anat_preproc(anat_list, subject_session_func, json_cache, 
-    #                  output_dir, protocol)
     
 
     # Loop through functional sessions
     print('func preprocessing')
-    # run_func_preproc(func_list, subject_session_func, json_cache, 
-    #                  metadata_dict, output_dir, protocol)
     pool = Pool(processes=n_cores)
     pool.starmap(run_func_preproc, zip(func_list, subject_session_func, 
                                        repeat(json_cache), repeat(metadata_dict),
