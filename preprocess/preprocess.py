@@ -28,7 +28,7 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
     prepare_derivatives(main_dir)
 
     # Get subjects-sessions that belong to protocol
-    subject_session = get_subject_session(protocol)
+    subject_session_func = get_subject_session(protocol)
 
     # Pull config obj
     cobj = ConfigObj(f'preprocess/pipeline_config/IBC_preproc_{protocol}.ini')
@@ -54,7 +54,7 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
     elif protocol in ['mtt1', 'mtt2']:
         acq = 'mb3'
 
-    apply_topup(main_dir, cache_dir, n_cores, subject_session, acq)
+    apply_topup(main_dir, cache_dir, n_cores, subject_session_func, acq)
 
     # Set templates for finding functional and anatomical (T1) files
     func_file = os.path.abspath('data/derivatives/%s/%s/func/dcsub*bold.nii.gz')
