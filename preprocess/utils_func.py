@@ -58,7 +58,7 @@ def func_preproc(func_list, json_cache, json_output, metadata, fwhm=3.0, highpas
             epireg = fsl.EpiReg()
             epireg.inputs.epi = func_file
             epireg.inputs.t1_head=json_cache['anat']['reorient']
-            epireg.inputs.t1_brain=json_cache['anat']['bet']
+            epireg.inputs.t1_brain=json_cache['anat']['bet']['map']
             # epireg expects the wmseg output as a suffix to the epi image (weird)
             # rename for now
             wmseg = f'{rename_output(func_file, output_dict["coregister"], ext="")}_fast_wmseg.nii.gz'
