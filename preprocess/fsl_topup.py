@@ -62,13 +62,13 @@ def _make_merged_filename(fmap_dir, basenames):
 	return(os.path.join(fmap_dir, merged_basename))
 
 
-def apply_topup(main_dir, cache_dir, subject_sess=None, acq=None):
+def apply_topup(main_dir, cache_dir, n_core, subject_sess=None, acq=None):
 	""" Call topup on the datasets """
 	mem = Memory(cache_dir)
 	if subject_sess is None:
 		subject_sess = [('sub-%02d, ses-%02d' % (i, j)) for i in range(0, 50)
 						for j in range(0, 15)]
-	Parallel(n_jobs=1)(
+	Parallel(n_jobs=n_core)(
 		delayed(run_topup)(mem, main_dir, subject_ses[0], subject_ses[1],
 						   acq=acq)
 		for subject_ses in subject_sess)

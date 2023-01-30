@@ -54,7 +54,7 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
     elif protocol in ['mtt1', 'mtt2']:
         acq = 'mb3'
 
-    apply_topup(main_dir, cache_dir, subject_session, acq)
+    apply_topup(main_dir, cache_dir, n_cores, subject_session, acq)
 
     # Set templates for finding functional and anatomical (T1) files
     func_file = os.path.abspath('data/derivatives/%s/%s/func/dcsub*bold.nii.gz')
