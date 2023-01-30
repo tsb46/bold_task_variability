@@ -13,7 +13,7 @@ from utils_anat import anat_preproc
 from utils_func import func_preproc
 
 
-def preprocess(protocol, main_dir, ignore_cache, n_cores):
+def preprocess(protocol, anatomical, main_dir, ignore_cache, n_cores):
     # Script parameters
     cache_dir = f'{main_dir}/tmp'
 
@@ -82,13 +82,13 @@ def preprocess(protocol, main_dir, ignore_cache, n_cores):
                                        func_list, anat_list, ignore_cache=False)
 
     # Loop through T1w images and preprocess
-    print('T1w preprocessing')
-    pool = Pool(processes=n_cores)
-    pool.starmap(run_anat_preproc, zip(anat_list, subject_session_func, 
-                                       repeat(json_cache), repeat(output_dir), 
-                                       repeat(protocol)))
+    if anatomical:
+        print('T1w preprocessing')
+        pool = Pool(processes=n_cores)
+        pool.starmap(run_anat_preproc, zip(anat_list, subject_session_func, 
+                                           repeat(json_cache), repeat(output_dir), 
+                                           repeat(protocol)))
     
-
     # Loop through functional sessions
     print('func preprocessing')
     pool = Pool(processes=n_cores)
@@ -110,9 +110,8 @@ def run_func_preproc(func_ses, sub_ses, json_cache,
                      metadata_dict, output_dir, protocol):
         subj = sub_ses[0]
         print(f'subject: {subj}')
-        json_cache_subj = func_preproc(func_ses, json_cache[subj], metadata_dict)
         json_output = f'{os.path.abspath(output_dir)}/{protocol}_{subj}_cache.json'
-        json.dump(json_cache_subj, open(json_output, 'w'), ensure_ascii=False, indent=4)
+        json_cache_subj = func_preproc(func_ses, json_cache[subj], json_output, metadata_dict)
 
 
 if __name__ == '__main__':
@@ -122,6 +121,11 @@ if __name__ == '__main__':
                         help='<Required> protocol string',
                         required=True,
                         type=str)
+    parser.add_argument('-a', '--anatomical',
+                        help='Whether to run T1w preprocessing (only needs to be run once)',
+                        required=False,
+                        default=0,
+                        type=int)
     parser.add_argument('-d', '--main_dir',
                         help='directory where IBC data is stored',
                         required=False,
@@ -140,8 +144,9 @@ if __name__ == '__main__':
                         type=int)
 
     args_dict = vars(parser.parse_args())
-    preprocess(args_dict['protocol'], args_dict['main_dir'], 
-               args_dict['ignore_cache'], args_dict['n_cores'])
+    preprocess(args_dict['protocol'], args_dict['anatomical'],
+               args_dict['main_dir'], args_dict['ignore_cache'], 
+               args_dict['n_cores'])
 
 
 
