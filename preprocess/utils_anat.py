@@ -28,8 +28,8 @@ def anat_preproc(anat_file, json_cache):
                                                  output_dict['bet'])
         bet_anat_res = bet_anat.run()
         json_cache['anat']['bet'] = {}
-        json_cache['anat']['bet']['map'] = bet_anat_res.outputs.mask_file
-        json_cache['anat']['bet']['mask'] = bet_anat_res.outputs.out_file
+        json_cache['anat']['bet']['map'] = bet_anat_res.outputs.out_file
+        json_cache['anat']['bet']['mask'] = bet_anat_res.outputs.mask_file
 
 
     # FAST - Image Segmentation
