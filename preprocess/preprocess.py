@@ -6,16 +6,12 @@ import os
 from configobj import ConfigObj
 from itertools import repeat
 from multiprocessing import Pool
-from nipype import Node, Workflow, Function, MapNode
 from nipype.interfaces.io import DataGrabber
-from nipype.interfaces import fsl
 from fsl_topup import apply_topup
 from file_utils import create_protocol_cache, get_subject_session, prepare_derivatives
 from utils_anat import anat_preproc
 from utils_func import func_preproc
 
-# Ensure output is .nii.gz
-fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
 
 def preprocess(protocol, main_dir, ignore_cache, n_cores):
     # Script parameters
@@ -123,25 +119,6 @@ def run_func_preproc(func_ses, sub_ses, json_cache,
         json_output = f'{os.path.abspath(output_dir)}/{protocol}_{subj}_cache.json'
         json.dump(json_cache_subj, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
-
-# def run_anat_preproc(anat_list, subject_session_func, json_cache, 
-#                      output_dir, protocol):
-#     for anat, sub_ses in zip(anat_list, subject_session_func):
-#         subj = sub_ses[0]
-#         print(f'subject: {subj}')
-#         json_cache_subj = anat_preproc(anat, json_cache[subj])
-#         json_output = f'{os.path.abspath(output_dir)}/{protocol}_{subj}_cache.json'
-#         json.dump(json_cache_subj, open(json_output, 'w'), ensure_ascii=False, indent=4)
-
-
-# def run_func_preproc(func_list, subject_session_func, json_cache, 
-#                      metadata_dict, output_dir, protocol):
-#     for func_ses, sub_ses in zip(func_list, subject_session_func):
-#         subj = sub_ses[0]
-#         print(f'subject: {subj}')
-#         json_cache_subj = func_preproc(func_ses, json_cache[subj], metadata_dict)
-#         json_output = f'{os.path.abspath(output_dir)}/{protocol}_{subj}_cache.json'
-#         json.dump(json_cache_subj, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
 if __name__ == '__main__':
     """Preprocess functional & anatomical scans from protocol IBC dataset"""
