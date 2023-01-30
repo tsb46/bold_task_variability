@@ -14,7 +14,7 @@ from nipype.interfaces.utility import Function
 fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
 
 
-def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
+def func_preproc(func_list, json_cache, json_output, metadata, fwhm=3.0, highpass=128):
     # Use json_cache to ensure functional preprocessing is not re-run if output exists
 
     # Define slice timing node that takes as input the 
@@ -31,6 +31,8 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             slicetimer_res = slicetimer.run()
             slicetime_list.append(slicetimer_res.outputs.slice_time_corrected_file)
         json_cache['func']['slicetime'] = slicetime_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
+
 
     # Mcflirt motion correction
     if json_cache['func'].get('mcflirt') is None:
@@ -46,6 +48,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             mcflirt_list['map'].append(mcflirt_res.outputs.out_file)
             mcflirt_list['mean_vol'].append(mean_vol_rename)
         json_cache['func']['mcflirt'] = mcflirt_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     # Coregister functional with T1w
     if json_cache['func'].get('coregister') is None:
@@ -65,6 +68,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             coregister_list['map'].append(epireg_res.outputs.out_file)
             coregister_list['omat'].append(epireg_res.outputs.epi2str_mat)
         json_cache['func']['coregister'] = coregister_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     # Concatenate affine transform matrices (func2struct & struct2MNI)
     if json_cache['func'].get('convertxfm') is None:
@@ -77,6 +81,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             convertxfm_res = convertxfm.run()
             convertxfm_list.append(convertxfm_res.outputs.out_file)
         json_cache['func']['convertxfm'] = convertxfm_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     # Transform functional to MNI space using ApplyXFM4D (in FSL)
     if json_cache['func'].get('standard') is None:
@@ -91,6 +96,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             subprocess.run([applyxfm_fsl, func_file, reference_file, standard_out, func2mni_mat, '-singlematrix'])
             standard_list.append(standard_out)
         json_cache['func']['standard'] = standard_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     # 3mm FWHM isotropic smoothing
     if json_cache['func'].get('smooth') is None:
@@ -102,6 +108,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             smooth_res = smooth.run()
             smooth_list.append(smooth_res.outputs.smoothed_file)
         json_cache['func']['smooth'] = smooth_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     # High-pass temporal filtering to remove trends - gaussian filter (in sigma)
     # In addition, z-score normalize along the time dimension
@@ -124,6 +131,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             zscore_norm.run()
             filt_list.append(rename_output(func_file, output_dict['filtz']))
         json_cache['func']['temporal_filt_z'] = filt_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     # apply mask to functional image (from BET mask in MNI space)
     if json_cache['func'].get('func_mask') is None:
@@ -136,6 +144,7 @@ def func_preproc(func_list, json_cache, metadata, fwhm=3.0, highpass=128):
             applymask_res = applymask.run()
             mask_list.append(applymask_res.outputs.out_file)
         json_cache['func']['func_mask'] = mask_list
+        json.dump(json_cache, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
     return json_cache
 
