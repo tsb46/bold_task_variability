@@ -25,7 +25,8 @@ output_dict = {
 }
 
 
-def create_protocol_cache(subject_session, output_dir, protocol, func_list, anat_list, ignore_cache=False):
+def create_protocol_cache(subject_session, output_dir, protocol, func_list, 
+                          anat_list, anatomical, ignore_cache=False):
     # Create cache .json for communicating b/w anat and func pipelines
     json_cache = {}
     for sub_ses, func, anat in zip(subject_session, func_list, anat_list):
@@ -38,6 +39,11 @@ def create_protocol_cache(subject_session, output_dir, protocol, func_list, anat
             json_cache_subj['func']['orig'] = func
             json_cache_subj['anat']['orig'] = anat
             json_cache[subj] = json_cache_subj
+
+        if ~anatomical:
+            output_dir_anat = output_dir.replace(protocol, 'anat')
+            json_cache_subj_anat = json.load(open(f'{os.path.abspath(output_dir_anat)}/anat_{subj}_cache.json', 'rb'))
+            json_cache[subj]['anat'] = json_cache_subj_anat['anat'] 
     return json_cache
 
 """

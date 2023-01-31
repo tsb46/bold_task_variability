@@ -79,14 +79,18 @@ def preprocess(protocol, anatomical, main_dir, ignore_cache, n_cores):
 
     # Read in (or create) protocol cache for keeping up with output
     json_cache = create_protocol_cache(subject_session_func, output_dir, protocol, 
-                                       func_list, anat_list, ignore_cache=False)
+                                       func_list, anat_list, anatomical, 
+                                       ignore_cache=False)
 
     # Loop through T1w images and preprocess
     if anatomical:
         print('T1w preprocessing')
+        # Create anat derivatives folder if not exist
+        anat_out = f'{main_dir}/derivatives/anat'
+        os.makedirs(anat_out, exist_ok=True)
         pool = Pool(processes=n_cores)
         pool.starmap(run_anat_preproc, zip(anat_list, subject_session_func, 
-                                           repeat(json_cache), repeat(output_dir), 
+                                           repeat(json_cache), repeat(anat_out), 
                                            repeat(protocol)))
     
     # Loop through functional sessions
@@ -102,8 +106,10 @@ def run_anat_preproc(anat, sub_ses, json_cache,
         subj = sub_ses[0]
         print(f'subject: {subj}')
         json_cache_subj = anat_preproc(anat, json_cache[subj])
-        json_output = f'{os.path.abspath(output_dir)}/{protocol}_{subj}_cache.json'
-        json.dump(json_cache_subj, open(json_output, 'w'), ensure_ascii=False, indent=4)
+        json_cache_subj_anat = json_cache_subj.copy()
+        del json_cache_subj_anat['func'] # remove fuctional
+        json_output = f'{os.path.abspath(output_dir)}/anat_{subj}_cache.json'
+        json.dump(json_cache_subj_anat, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
 
 def run_func_preproc(func_ses, sub_ses, json_cache, 
