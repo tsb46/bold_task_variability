@@ -7,136 +7,87 @@ from configobj import ConfigObj
 from itertools import repeat
 from multiprocessing import Pool
 from nipype.interfaces.io import DataGrabber
-from fsl_topup import apply_topup
-from file_utils import create_protocol_cache, get_subject_session, prepare_derivatives
+from file_utils import create_protocol_cache
 from utils_anat import anat_preproc
 from utils_func import func_preproc
 
 
-def preprocess(protocol, anatomical, main_dir, ignore_cache, n_cores):
-    # Script parameters
-    cache_dir = f'{main_dir}/tmp'
-
-    # Set output directory based on protocol name
-    output_dir = f'{main_dir}/derivatives/{protocol}'
-
-    # Create protocol derivatives folder if not exist
-    os.makedirs(output_dir, exist_ok=True)
-
-    # prepare derivatives folder (where results of pipeline stored)
-    # only needs to be run once, but OK if runs again
-    prepare_derivatives(main_dir)
-
-    # Get subjects-sessions that belong to protocol
-    subject_session_func = get_subject_session(protocol)
-
-    # Pull config obj
-    cobj = ConfigObj(f'preprocess/pipeline_config/IBC_preproc_{protocol}.ini')
-
-    # Pull tasks for session 
-    ses_tasks = [key.split('session_task-')[1].split('_func')[0] for key in cobj['config'].keys() 
-                 if key.startswith('session_task') & key.endswith('func')]
-    # Pull first task json (for slice timing parameters)
-    task_json = json.load(open(f'data/task-{ses_tasks[0]}_bold.json', 'rb'))
-    t_custom = task_json['SliceTiming']
-    np.savetxt(f'{cache_dir}/{protocol}_timing.txt', t_custom)
-
-    # Pull metadata
-    tr = float(cobj['config']['TR'])
-    metadata_dict = dict(tr=tr, 
-                         slicetime=f'{cache_dir}/{protocol}_timing.txt')
-
-
-    # Apply FSL TOPUP Distortion Correction
-    acq = None
-    if protocol in ['rs']:
-        acq = 'mb6'
-    elif protocol in ['mtt1', 'mtt2']:
-        acq = 'mb3'
-
-    apply_topup(main_dir, cache_dir, n_cores, subject_session_func, acq)
-
+def preprocess(main_dir, rm_interm_func, ignore_cache, n_cores):
+    # Ignore tasks
+    task_ignore = ['Bang', 'ClipsTrn', 'ClipsVal', 'ContRing', 'WedgeAnti',
+                   'WedgeClock' 'Retinotopy-Wedge', 'Raiders', 'RestingState']
+    # Hard code subject list
+    subj_list = ['sub-01', 'sub-02', 'sub-03', 'sub-04', 'sub-05',
+                 'sub-06', 'sub-07', 'sub-08', 'sub-09', 'sub-10',
+                 'sub-11', 'sub-12', 'sub-13', 'sub-14', 'sub-15']
     # Set templates for finding functional and anatomical (T1) files
-    func_file = os.path.abspath('data/derivatives/%s/%s/func/dcsub*bold.nii.gz')
-    anat_file = os.path.abspath(
-        os.path.join('data/derivatives/', cobj['config']['anat'].replace('..', '%s'))
-    )
+    func_file = os.path.abspath('data/%s/ses-*/func/*bold.nii.gz')
+    anat_file = os.path.abspath('data/%s/ses-00/anat/*T1w.nii.gz')
 
     # Use DataGrabber to collect functional and anatomical scans
-    dg = DataGrabber(infields=['sub', 'ses'], outfields=['anat', 'func'])
-    dg.inputs.base_directory = os.path.abspath(output_dir)
+    dg = DataGrabber(infields=['sub'], outfields=['anat', 'func'])
+    dg.inputs.base_directory = os.path.abspath(main_dir)
     dg.inputs.field_template = {'anat': anat_file,
                                 'func': func_file}
     dg.inputs.template_args = {'anat': [['sub']],
-                               'func': [['sub', 'ses']]}
+                               'func': [['sub']]}
     dg.inputs.template = '*'
     dg.inputs.sort_filelist = False
-    dg.inputs.sub = [s[0] for s in subject_session_func]
-    dg.inputs.ses = [s[1] for s in subject_session_func]
+    dg.inputs.sub = subj_list
     iter_list = dg.run().outputs
     anat_list = iter_list.anat
-    func_list = iter_list.func
+    func_list = [(subj, f) for subj, func_ses in zip(subj_list, iter_list.func) for f in func_ses]
+
+    # Ignore naturalistic viewing and resting state scans
+    func_list = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
 
     # Read in (or create) protocol cache for keeping up with output
-    json_cache = create_protocol_cache(subject_session_func, output_dir, protocol, 
-                                       func_list, anat_list, anatomical, 
-                                       ignore_cache=False)
+    json_cache_anat = create_protocol_cache(subj_list, main_dir, 
+                                            anat_list, ignore_cache=False)
 
     # Loop through T1w images and preprocess
-    if anatomical:
-        print('T1w preprocessing')
-        # Create anat derivatives folder if not exist
-        anat_out = f'{main_dir}/derivatives/anat'
-        os.makedirs(anat_out, exist_ok=True)
-        pool = Pool(processes=n_cores)
-        pool.starmap(run_anat_preproc, zip(anat_list, subject_session_func, 
-                                           repeat(json_cache), repeat(anat_out), 
-                                           repeat(protocol)))
+    print('T1w preprocessing')
+    pool = Pool(processes=n_cores)
+    pool.starmap(run_anat_preproc, zip(anat_list, subj_list, 
+                                       repeat(json_cache_anat), 
+                                       repeat(main_dir)))
+    run_anat_preproc(anat_list[0], subj_list[0], json_cache_anat, main_dir)
     
     # Loop through functional sessions
     print('func preprocessing')
     pool = Pool(processes=n_cores)
-    pool.starmap(run_func_preproc, zip(func_list, subject_session_func, 
-                                       repeat(json_cache), repeat(metadata_dict),
-                                       repeat(output_dir), repeat(protocol)))
-    
+    pool.starmap(run_func_preproc, zip(func_list, repeat(json_cache_anat), 
+                                       repeat(main_dir), repeat(rm_interm_func)))
 
-def run_anat_preproc(anat, sub_ses, json_cache, 
-                     output_dir, protocol):
-        subj = sub_ses[0]
+def run_anat_preproc(anat, subj, json_cache, main_dir):
         print(f'subject: {subj}')
         json_cache_subj = anat_preproc(anat, json_cache[subj])
-        json_cache_subj_anat = json_cache_subj.copy()
-        del json_cache_subj_anat['func'] # remove fuctional
-        json_output = f'{os.path.abspath(output_dir)}/anat_{subj}_cache.json'
-        json.dump(json_cache_subj_anat, open(json_output, 'w'), ensure_ascii=False, indent=4)
+        json_output = f'{os.path.abspath(main_dir)}/{subj}_cache.json'
+        json.dump(json_cache_subj, open(json_output, 'w'), ensure_ascii=False, indent=4)
 
 
-def run_func_preproc(func_ses, sub_ses, json_cache, 
-                     metadata_dict, output_dir, protocol):
-        subj = sub_ses[0]
-        print(f'subject: {subj}')
-        json_output = f'{os.path.abspath(output_dir)}/{protocol}_{subj}_cache.json'
-        json_cache_subj = func_preproc(func_ses, json_cache[subj], json_output, metadata_dict)
+def run_func_preproc(func, json_cache, main_dir, rm_interm_func):
+        print(f'subject: {func[0]}')
+        func_output = func_preproc(func[1], json_cache[func[0]])
+        if rm_interm_func:
+            rm_files = [('resample_out'), ('smooth'), ('temporal_filt_z')]
+            for file in rm_files:
+                os.remove(func_output[file])
 
 
 if __name__ == '__main__':
-    """Preprocess functional & anatomical scans from protocol IBC dataset"""
-    parser = argparse.ArgumentParser(description='Preprocess functional & anatomical scans from protocol IBC dataset')
-    parser.add_argument('-p', '--protocol',
-                        help='<Required> protocol string',
-                        required=True,
-                        type=str)
-    parser.add_argument('-a', '--anatomical',
-                        help='Whether to run T1w preprocessing (only needs to be run once)',
-                        required=False,
-                        default=0,
-                        type=int)
+    """Preprocess functional & anatomical scans from IBC dataset"""
+    parser = argparse.ArgumentParser(description='Preprocess functional & anatomical scans from IBC dataset')
     parser.add_argument('-d', '--main_dir',
                         help='directory where IBC data is stored',
                         required=False,
                         default='data',
                         type=str)
+    parser.add_argument('-r', '--remove_intermediate_func',
+                        help='remove output of all functional preprocessing, except final (save a lot of space)',
+                        required=False,
+                        default=0,
+                        type=int)
     parser.add_argument('-c', '--ignore_cache',
                         help='whether to ignore cache (i.e. ignore intermediate outputs,'
                         'start from scratch (default: 0)',
@@ -149,10 +100,10 @@ if __name__ == '__main__':
                         required=False,
                         type=int)
 
+
     args_dict = vars(parser.parse_args())
-    preprocess(args_dict['protocol'], args_dict['anatomical'],
-               args_dict['main_dir'], args_dict['ignore_cache'], 
-               args_dict['n_cores'])
+    preprocess(args_dict['main_dir'], args_dict['remove_intermediate_func'],
+               args_dict['ignore_cache'], args_dict['n_cores'])
 
 
 

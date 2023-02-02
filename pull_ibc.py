@@ -36,6 +36,7 @@ if __name__ == '__main__':
 	# Pull all files in database
 	bucket_files = bucket.ls()
 
+	# Parallel download with 3 workers
 	pool = Pool(processes=3)
 	pool.starmap(download_file, zip(bucket_files, repeat(output_dir)))
 
