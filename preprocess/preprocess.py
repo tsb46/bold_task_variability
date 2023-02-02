@@ -41,17 +41,15 @@ def preprocess(main_dir, rm_interm_func, n_cores):
     
     # Loop through functional sessions
     print('func preprocessing')
-    # pool = Pool(processes=n_cores)
-    # pool.starmap(run_func_preproc, zip(func_list,repeat(main_dir), repeat(rm_interm_func)))
-    run_func_preproc(func_list[0], main_dir, rm_interm_func)
+    pool = Pool(processes=n_cores)
+    pool.starmap(run_func_preproc, zip(func_list,repeat(main_dir), repeat(rm_interm_func)))
 
 
 def run_func_preproc(func, main_dir, rm_interm_func):
         print(f'subject: {func[0]}')
         func_output = func_preproc(func[1])
         if rm_interm_func:
-            rm_files = [('select_vol'), ('transform'), ('resample_out'), 
-                        ('smooth'), ('temporal_filt_z')]
+            rm_files = [('resample_out'), ('smooth'), ('temporal_filt_z')]
             for file in rm_files:
                 os.remove(func_output[file])
 
