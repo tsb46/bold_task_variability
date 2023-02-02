@@ -7,10 +7,9 @@ import shutil
 
 # Define renaming dictionary for output naming
 output_dict = {
-    'anat_resample': '_resamp',
-    'bet': '_bet',
-    'bet_mask': '_reg',
-    'func_resample': '_resamp' ,
+    'select_vol': '_firstvol', 
+    'transform': '_transform',
+    'func_resample': '_resamp',
     'smooth': '_sm',
     'filtz': '_filtz',
     'applymask': '_mask'

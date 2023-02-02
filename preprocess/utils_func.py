@@ -15,16 +15,40 @@ from nipype.interfaces.utility import Function
 fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
 
 
-def func_preproc(func_file, json_cache, fwhm=4.0, highpass=128, tr=2):
+def func_preproc(func_file, fwhm=4.0, highpass=128, tr=2):
     func_output = {}
+    
+    # Select first volume for functional resampling
+    fslroi = fsl.ExtractROI(in_file=func_file, roi_file='bar.nii', t_min=0,
+                        t_size=1)
+    fslroi.inputs.in_file = func_file
+    fslroi.inputs.roi_file = rename_output(func_file, output_dict['select_vol'])
+    fslroi_res = fslroi.run()
+    func_output['select_vol'] = fslroi_res.outputs.roi_file
+
+    # Flirt align first func volume with final mask
+    flirt_resamp = fsl.FLIRT()
+    flirt_resamp.inputs.in_file = func_output['select_vol']
+    flirt_resamp.inputs.reference = os.path.abspath('preprocess/MNI152_T1_2mm_brain_mask.nii.gz')
+    flirt_resamp.inputs.out_file = rename_output(func_file, output_dict['transform'])
+    out_matrix_fp = rename_output(func_output['select_vol'], output_dict['transform'], ext='.mat')
+    flirt_resamp.out_matrix_file = out_matrix_fp
+    flirt_resamp_res = flirt_resamp.run()
+    # remove registered volume - just need affine transform
+    os.remove(flirt_resamp_res.outputs.out_file)
+    # Flirt saves output matrix in base directory, move to results directory
+    os.rename(flirt_resamp_res.outputs.out_matrix_file, out_matrix_fp)
+    func_output['transform'] = out_matrix_fp
+
     # Transform functional to resampled (2mm) MNI space using ApplyXFM4D (in FSL)
     fsldir = os.environ['FSLDIR']
-    reference_file = json_cache['anat']['anat_resample']['map']
+    reference_file = os.path.abspath('preprocess/MNI152_T1_2mm_brain_mask.nii.gz')
     resample_out = rename_output(func_file, output_dict['func_resample'])
-    transform_mat = json_cache['anat']['anat_resample']['mat']
+    transform_mat = func_output['transform']
     applyxfm_fsl = f'{fsldir}/bin/applyxfm4D'
     subprocess.run([applyxfm_fsl, func_file, reference_file, resample_out, transform_mat, '-singlematrix'])
     func_output['resample_out'] = resample_out
+
 
     # 4mm FWHM isotropic smoothing
     smooth = fsl.Smooth(fwhm=fwhm)
@@ -51,14 +75,16 @@ def func_preproc(func_file, json_cache, fwhm=4.0, highpass=128, tr=2):
     zscore_norm.run()
     func_output['temporal_filt_z'] = filt.inputs.out_file
 
-    # apply mask to functional image (from BET mask in MNI space)
+    # apply mask to functional image and fill NaNs (from BET mask in MNI space)
     applymask = fsl.ApplyMask()
     applymask.inputs.in_file = func_output['temporal_filt_z']
-    applymask.inputs.mask_file = json_cache['anat']['bet_mask']
+    applymask.inputs.mask_file = os.path.abspath('preprocess/MNI152_T1_2mm_brain_mask.nii.gz')
     applymask.inputs.out_file=rename_output(func_output['temporal_filt_z'], 
                                             output_dict['applymask'])
     applymask_res = applymask.run()
     func_output['func_mask'] = applymask_res.outputs.out_file
+
+
 
     return func_output
 
@@ -67,6 +93,7 @@ def func_preproc(func_file, json_cache, fwhm=4.0, highpass=128, tr=2):
 def zscore4d(in_file, out_file):
 
     import nibabel as nb
+    import numpy as np
     from scipy.stats import zscore
 
     # Load the data
@@ -75,6 +102,7 @@ def zscore4d(in_file, out_file):
 
     # Zscore along the time dimension
     newdata = zscore(data, axis=3)
+    np.nan_to_num(newdata, copy=False)
 
     # Save the new data in a new NIfTI image
     nb.Nifti1Image(newdata, nii.affine, nii.header).to_filename(out_file)
