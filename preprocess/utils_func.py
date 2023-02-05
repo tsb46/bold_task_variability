@@ -18,11 +18,18 @@ fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
 def func_preproc(func_file, fwhm=4.0, highpass=128, tr=2):
     func_output = {}
 
+    # Fill NaNs with zero (FSL doesn't like NaN)
+    fill_nan = fsl.UnaryMaths(operation='nan')
+    fill_nan.inputs.in_file = func_file
+    fill_nan.inputs.out_file = rename_output(func_file, output_dict['fill_nan'])
+    fill_nan_res = fill_nan.run()
+    func_output['fill_nan'] = fill_nan_res.outputs.out_file
+
     # Transform functional to resampled (2mm) MNI space using ApplyXFM (in FSL)
     flirt_resamp = fsl.FLIRT(apply_xfm=True, uses_qform=True)
-    flirt_resamp.inputs.in_file = func_file
+    flirt_resamp.inputs.in_file = func_output['fill_nan']
     flirt_resamp.inputs.reference = os.path.abspath('preprocess/MNI152_T1_2mm_brain_mask.nii.gz')
-    flirt_resamp.inputs.out_file = rename_output(func_file, output_dict['func_resample'])
+    flirt_resamp.inputs.out_file = rename_output(func_output['fill_nan'], output_dict['func_resample'])
     flirt_resamp_res = flirt_resamp.run()
     os.remove(flirt_resamp_res.outputs.out_matrix_file)
     func_output['resample_out'] = flirt_resamp_res.outputs.out_file

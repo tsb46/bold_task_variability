@@ -7,7 +7,7 @@ from configobj import ConfigObj
 from itertools import repeat
 from multiprocessing import Pool
 from nipype.interfaces.io import DataGrabber
-from file_utils import create_protocol_cache
+from file_utils import strip_suffix, output_dict
 from utils_func import func_preproc
 
 
@@ -20,9 +20,9 @@ def preprocess(main_dir, rm_interm_func, n_cores):
                  'sub-06', 'sub-07', 'sub-08', 'sub-09',
                  'sub-11', 'sub-12', 'sub-13', 'sub-14', 
                  'sub-15']
+    subj_list = ['sub-01', 'sub-02']
     # Set templates for finding functional and anatomical (T1) files
     func_file = os.path.abspath('data/%s/ses-*/func/*bold.nii.gz')
-    anat_file = os.path.abspath('data/%s/ses-00/anat/*T1w.nii.gz')
 
     # Use DataGrabber to collect functional and anatomical scans
     dg = DataGrabber(infields=['sub'], outfields=['func'])
@@ -37,7 +37,11 @@ def preprocess(main_dir, rm_interm_func, n_cores):
 
     # Ignore naturalistic viewing and resting state scans
     func_list = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
-
+    # Ignore scans that that are already preprocessed
+    prep_steps = ['fill_nan', 'func_resample', 'smooth', 'filtz', 'applymask']
+    prep_ext = ''.join([output_dict[p] for p in prep_steps])
+    func_list = [f for f in func_list 
+                 if not os.path.isfile(strip_suffix(f[1]) + prep_ext + '.nii.gz')]
     
     # Loop through functional sessions
     print('func preprocessing')
@@ -49,7 +53,7 @@ def run_func_preproc(func, main_dir, rm_interm_func):
         print(f'subject: {func[0]}')
         func_output = func_preproc(func[1])
         if rm_interm_func:
-            rm_files = [('resample_out'), ('smooth'), ('temporal_filt_z')]
+            rm_files = [('fill_nan'), ('resample_out'), ('smooth'), ('temporal_filt_z')]
             for file in rm_files:
                 os.remove(func_output[file])
 
