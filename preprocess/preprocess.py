@@ -1,17 +1,21 @@
 import argparse
 import json
+import nibabel as nb
 import numpy as np
 import os
 
 from configobj import ConfigObj
+from file_utils import strip_suffix, output_dict
+from dim_reduce import pca
 from itertools import repeat
 from multiprocessing import Pool
 from nipype.interfaces.io import DataGrabber
-from file_utils import strip_suffix, output_dict
 from utils_func import func_preproc
 
 
 def preprocess(main_dir, rm_interm_func, n_cores):
+    # mask file path
+    mask_fp = 'preprocess/MNI152_T1_2mm_brain_mask.nii.gz'
     # Ignore tasks
     task_ignore = ['Bang', 'ClipsTrn', 'ClipsVal', 'ContRing', 'WedgeAnti',
                    'WedgeClock' 'Retinotopy-Wedge', 'Raiders', 'RestingState']
@@ -21,32 +25,55 @@ def preprocess(main_dir, rm_interm_func, n_cores):
                  'sub-11', 'sub-12', 'sub-13', 'sub-14', 
                  'sub-15']
     subj_list = ['sub-01', 'sub-02']
-    # Set templates for finding functional and anatomical (T1) files
-    func_file = os.path.abspath('data/%s/ses-*/func/*bold.nii.gz')
+    # # Set templates for finding functional and anatomical (T1) files
+    # func_file = os.path.abspath('data/%s/ses-*/func/*bold.nii.gz')
 
-    # Use DataGrabber to collect functional and anatomical scans
-    dg = DataGrabber(infields=['sub'], outfields=['func'])
-    dg.inputs.base_directory = os.path.abspath(main_dir)
-    dg.inputs.field_template = {'func': func_file}
-    dg.inputs.template_args = {'func': [['sub']]}
-    dg.inputs.template = '*'
-    dg.inputs.sort_filelist = False
-    dg.inputs.sub = subj_list
-    iter_list = dg.run().outputs
-    func_list = [(subj, f) for subj, func_ses in zip(subj_list, iter_list.func) for f in func_ses]
+    # # Use DataGrabber to collect functional and anatomical scans
+    # dg = DataGrabber(infields=['sub'], outfields=['func'])
+    # dg.inputs.base_directory = os.path.abspath(main_dir)
+    # dg.inputs.field_template = {'func': func_file}
+    # dg.inputs.template_args = {'func': [['sub']]}
+    # dg.inputs.template = '*'
+    # dg.inputs.sort_filelist = False
+    # dg.inputs.sub = subj_list
+    # iter_list = dg.run().outputs
+    # func_list = [(subj, f) for subj, func_ses in zip(subj_list, iter_list.func) for f in func_ses]
 
-    # Ignore naturalistic viewing and resting state scans
-    func_list = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
-    # Ignore scans that that are already preprocessed
-    prep_steps = ['fill_nan', 'func_resample', 'smooth', 'filtz', 'applymask']
-    prep_ext = ''.join([output_dict[p] for p in prep_steps])
-    func_list = [f for f in func_list 
-                 if not os.path.isfile(strip_suffix(f[1]) + prep_ext + '.nii.gz')]
+    # # Ignore naturalistic viewing and resting state scans
+    # func_list_filt = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
+    # # Ignore scans that that are already preprocessed
+    # prep_steps = ['fill_nan', 'func_resample', 'smooth', 'filtz', 'applymask']
+    # prep_ext = ''.join([output_dict[p] for p in prep_steps])
+    # func_list = [f for f in func_list_filt
+    #              if not os.path.isfile(strip_suffix(f[1]) + prep_ext + '.nii.gz')]
     
-    # Loop through functional sessions
-    print('func preprocessing')
-    pool = Pool(processes=n_cores)
-    pool.starmap(run_func_preproc, zip(func_list,repeat(main_dir), repeat(rm_interm_func)))
+    # # Loop through functional sessions
+    # print('func preprocessing')
+    # pool = Pool(processes=n_cores)
+    # pool.starmap(run_func_preproc, zip(func_list,repeat(main_dir), repeat(rm_interm_func)))
+
+    print('dimension reduction')
+    # Use DataGrabber to collect preprocessed functional data (assume masked data is final step)
+    proc_file = os.path.abspath('data/%s/ses-*/func/*mask.nii.gz')
+    dg_dr = DataGrabber(infields=['sub'], outfields=['func'])
+    dg_dr.inputs.base_directory = os.path.abspath(main_dir)
+    dg_dr.inputs.field_template = {'func': proc_file}
+    dg_dr.inputs.template_args = {'func': [['sub']]}
+    dg_dr.inputs.template = '*'
+    dg_dr.inputs.sort_filelist = True
+    dg_dr.inputs.sub = subj_list
+    proc_list = dg_dr.run().outputs.func
+
+    # Apply PCA on each subject
+    mask = nb.load(mask_fp)
+
+    for subj, func_ses in zip(subj_list, proc_list):
+        print(subj)
+        pca(func_ses, main_dir, mask, 200)
+
+
+
+
 
 
 def run_func_preproc(func, main_dir, rm_interm_func):
@@ -56,6 +83,7 @@ def run_func_preproc(func, main_dir, rm_interm_func):
             rm_files = [('fill_nan'), ('resample_out'), ('smooth'), ('temporal_filt_z')]
             for file in rm_files:
                 os.remove(func_output[file])
+
 
 
 if __name__ == '__main__':

@@ -26,3 +26,13 @@ def rename_output(fp, step, ext='.nii.gz'):
 def strip_suffix(fp):
     return os.path.splitext(os.path.splitext(fp)[0])[0]
 
+# Utility to pull task/ses/subj from functional file path 
+def ibc_get_task(fp):
+    fp_base = os.path.basename(fp)
+    if 'RSVPLanguage' in fp_base:
+        return fp_base.split('_')[:5]
+    else:
+        return fp_base.split('_')[:4]
+
+
+
