@@ -16,6 +16,8 @@ from utils_func import func_preproc
 def preprocess(main_dir, rm_interm_func, n_cores):
     # mask file path
     mask_fp = 'preprocess/MNI152_T1_2mm_brain_mask.nii.gz'
+    # Ignore sessions 
+    ses_ignore = ['ses-00']
     # Ignore tasks
     task_ignore = ['Bang', 'ClipsTrn', 'ClipsVal', 'ContRing', 'WedgeAnti',
                    'WedgeClock' 'Retinotopy-Wedge', 'Raiders', 'RestingState']
@@ -24,28 +26,29 @@ def preprocess(main_dir, rm_interm_func, n_cores):
                  'sub-06', 'sub-07', 'sub-08', 'sub-09',
                  'sub-11', 'sub-12', 'sub-13', 'sub-14', 
                  'sub-15']
-    subj_list = ['sub-01', 'sub-02']
-    # # Set templates for finding functional and anatomical (T1) files
-    # func_file = os.path.abspath('data/%s/ses-*/func/*bold.nii.gz')
+    # Set templates for finding functional and anatomical (T1) files
+    func_file = os.path.abspath('data/%s/ses-*/func/*bold.nii.gz')
 
-    # # Use DataGrabber to collect functional and anatomical scans
-    # dg = DataGrabber(infields=['sub'], outfields=['func'])
-    # dg.inputs.base_directory = os.path.abspath(main_dir)
-    # dg.inputs.field_template = {'func': func_file}
-    # dg.inputs.template_args = {'func': [['sub']]}
-    # dg.inputs.template = '*'
-    # dg.inputs.sort_filelist = False
-    # dg.inputs.sub = subj_list
-    # iter_list = dg.run().outputs
-    # func_list = [(subj, f) for subj, func_ses in zip(subj_list, iter_list.func) for f in func_ses]
+    # Use DataGrabber to collect functional and anatomical scans
+    dg = DataGrabber(infields=['sub'], outfields=['func'])
+    dg.inputs.base_directory = os.path.abspath(main_dir)
+    dg.inputs.field_template = {'func': func_file}
+    dg.inputs.template_args = {'func': [['sub']]}
+    dg.inputs.template = '*'
+    dg.inputs.sort_filelist = False
+    dg.inputs.sub = subj_list
+    iter_list = dg.run().outputs
+    func_list = [(subj, f) for subj, func_ses in zip(subj_list, iter_list.func) for f in func_ses]
 
-    # # Ignore naturalistic viewing and resting state scans
-    # func_list_filt = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
-    # # Ignore scans that that are already preprocessed
-    # prep_steps = ['fill_nan', 'func_resample', 'smooth', 'filtz', 'applymask']
-    # prep_ext = ''.join([output_dict[p] for p in prep_steps])
-    # func_list = [f for f in func_list_filt
-    #              if not os.path.isfile(strip_suffix(f[1]) + prep_ext + '.nii.gz')]
+    # Ignore naturalistic viewing and resting state scans
+    func_list = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
+    # Ignore screening sessions 
+    func_list = [func for func in func_list if all([t not in func[1] for t in ses_ignore])]
+    # Ignore scans that that are already preprocessed
+    prep_steps = ['fill_nan', 'func_resample', 'smooth', 'filtz', 'applymask']
+    prep_ext = ''.join([output_dict[p] for p in prep_steps])
+    func_list = [f for f in func_list
+                 if not os.path.isfile(strip_suffix(f[1]) + prep_ext + '.nii.gz')]
     
     # # Loop through functional sessions
     # print('func preprocessing')
@@ -69,7 +72,7 @@ def preprocess(main_dir, rm_interm_func, n_cores):
 
     for subj, func_ses in zip(subj_list, proc_list):
         print(subj)
-        pca(func_ses, main_dir, mask, 200)
+        pca(func_ses, main_dir, mask, 500)
 
 
 
