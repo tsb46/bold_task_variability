@@ -14,7 +14,7 @@ def pca(fps, output_dir, mask, n_comps, n_iter=10):
     print('run PCA')
     # See: https://github.com/scikit-learn/scikit-learn/issues/20589
     n_oversample = 500 # increase precision
-    pca = PCA(n_components = n_comps, svd_solver='randomized', n_oversample=n_oversample)
+    pca = PCA(n_components = n_comps, svd_solver='randomized', n_oversamples=n_oversample)
     pca_scores = pca.fit_transform(group_func)
     output_dict = {'singular_vectors': pca.components_,
                    'singular_values': pca.singular_values_,
