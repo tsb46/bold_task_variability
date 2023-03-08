@@ -1,8 +1,12 @@
 import numpy as np
+import os
+import sys
+
+# Ugly hack for sibling import
+sys.path.insert(0, os.path.abspath('.'))
 
 from scipy.io import savemat
-from load_write import load_func, initialize_group_array, write_nifti
-from file_utils import ibc_get_task
+from utils.load_write import load_func, initialize_group_array, group_concat, write_nifti
 from sklearn.decomposition import PCA
 
 
@@ -23,24 +27,6 @@ def pca(fps, output_dir, mask, n_comps, n_iter=10):
                    'pc_scores': pca_scores
                    }
     write_output(task_list, mask, output_dict, output_dir)
-
-
-def group_concat(fps, mask):
-    # get # of voxels from mask
-    mask_n = len(np.nonzero(mask)[0])
-    # Initialize a zero array for faster stacking
-    group_func = initialize_group_array(fps, mask_n)
-    # Loop through functional scans per subject and stack
-    indx = 0 # initialize index
-    group_str = [] # keep track of what scan is stacked on what
-    for scan_fp in fps:
-        func = load_func(scan_fp, mask)
-        func_n = func.shape[0]
-        group_func[indx:(indx+func_n), :] = func
-        group_str.append(ibc_get_task(scan_fp) + [range(indx, indx+func_n)])
-        indx += func_n
-
-    return group_func, group_str
 
 
 def write_output(task_list, mask, output_dict, output_dir):
