@@ -7,11 +7,9 @@ import shutil
 
 # Define renaming dictionary for output naming
 output_dict = {
+    'extract_roi': '_roi',
     'fill_nan': '_nan',
     'func_resample': '_resamp',
-    'smooth': '_sm',
-    'filtz': '_filtz',
-    'applymask': '_mask'
 }
 
 

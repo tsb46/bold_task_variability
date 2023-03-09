@@ -3,14 +3,20 @@ import json
 import nibabel as nb
 import numpy as np
 import os
+import sys
 
 from configobj import ConfigObj
-from file_utils import strip_suffix, output_dict
 from dim_reduce import pca
 from itertools import repeat
 from multiprocessing import Pool
 from nipype.interfaces.io import DataGrabber
 from utils_func import func_preproc
+
+# Ugly hack for sibling import
+sys.path.insert(0, os.path.abspath('.'))
+from utils.file_utils import strip_suffix, output_dict
+
+
 
 
 def preprocess(main_dir, rm_interm_func, n_cores):
@@ -44,38 +50,11 @@ def preprocess(main_dir, rm_interm_func, n_cores):
     func_list = [func for func in func_list if all([t not in func[1] for t in task_ignore])]
     # Ignore screening sessions 
     func_list = [func for func in func_list if all([t not in func[1] for t in ses_ignore])]
-    # Ignore scans that that are already preprocessed
-    prep_steps = ['fill_nan', 'func_resample', 'smooth', 'filtz', 'applymask']
-    prep_ext = ''.join([output_dict[p] for p in prep_steps])
-    func_list = [f for f in func_list
-                 if not os.path.isfile(strip_suffix(f[1]) + prep_ext + '.nii.gz')]
     
-    # # Loop through functional sessions
-    # print('func preprocessing')
-    # pool = Pool(processes=n_cores)
-    # pool.starmap(run_func_preproc, zip(func_list,repeat(main_dir), repeat(rm_interm_func)))
-
-    print('dimension reduction')
-    # Use DataGrabber to collect preprocessed functional data (assume masked data is final step)
-    proc_file = os.path.abspath('data/%s/ses-*/func/*mask.nii.gz')
-    dg_dr = DataGrabber(infields=['sub'], outfields=['func'])
-    dg_dr.inputs.base_directory = os.path.abspath(main_dir)
-    dg_dr.inputs.field_template = {'func': proc_file}
-    dg_dr.inputs.template_args = {'func': [['sub']]}
-    dg_dr.inputs.template = '*'
-    dg_dr.inputs.sort_filelist = True
-    dg_dr.inputs.sub = subj_list
-    proc_list = dg_dr.run().outputs.func
-
-    # Apply PCA on each subject
-    mask = nb.load(mask_fp)
-
-    for subj, func_ses in zip(subj_list, proc_list):
-        print(subj)
-        pca(func_ses, main_dir, mask, 500)
-
-
-
+    # Loop through functional sessions
+    print('func preprocessing')
+    pool = Pool(processes=n_cores)
+    pool.starmap(run_func_preproc, zip(func_list,repeat(main_dir), repeat(rm_interm_func)))
 
 
 
@@ -83,7 +62,7 @@ def run_func_preproc(func, main_dir, rm_interm_func):
         print(f'subject: {func[0]}')
         func_output = func_preproc(func[1])
         if rm_interm_func:
-            rm_files = [('fill_nan'), ('resample_out'), ('smooth'), ('temporal_filt_z')]
+            rm_files = [('fill_nan'), ('resample_out')]
             for file in rm_files:
                 os.remove(func_output[file])
 
@@ -98,7 +77,7 @@ if __name__ == '__main__':
                         default='data',
                         type=str)
     parser.add_argument('-r', '--remove_intermediate_func',
-                        help='remove output of all functional preprocessing, except final (save a lot of space)',
+                        help='remove output of resampling step',
                         required=False,
                         default=0,
                         type=int)
