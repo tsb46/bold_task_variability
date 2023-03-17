@@ -5,8 +5,11 @@ pyscript.m
 h2jupynb
 scratch.ipynb
 
+# Folders
 data
+results
 public_analysis_code
+yaglm
 pypreprocess
 
 

@@ -14,9 +14,6 @@ from nipype.interfaces import fsl
 sys.path.insert(0, os.path.abspath('.'))
 from utils.file_utils import output_dict, rename_output
 
-
-
-
 # Ensure output is .nii.gz
 fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
 

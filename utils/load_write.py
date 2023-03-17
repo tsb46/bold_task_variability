@@ -10,7 +10,20 @@ from utils.file_utils import ibc_get_task
 
 # global variables
 subj_ses_dict = {
-   'sub-01': ['ses-03', 'ses-04', 'ses-05', 'ses-07']         
+    'sub-01': ['ses-03', 'ses-04', 'ses-05', 'ses-07', 
+              'ses-14', 'ses-15', 'ses-18', 'ses-19', 
+              'ses-20', 'ses-22', 'ses-23', 'ses-24'],
+    'sub-02': ['ses-01', 'ses-04', 'ses-05', 'ses-06'],
+    'sub-04': ['ses-01', 'ses-02', 'ses-03', 'ses-04',
+               'ses-11', 'ses-12', 'ses-15', 'ses-16', 
+               'ses-17', 'ses-18', 'ses-19', 'ses-21', 
+               'ses-22', 'ses-23', 'ses-24', 'ses-25', 
+               'ses-26'],
+    'sub-05': ['ses-01', 'ses-02', 'ses-03', 'ses-04',
+               'ses-11', 'ses-12', 'ses-15', 'ses-16', 
+               'ses-17', 'ses-18', 'ses-19', 'ses-21',
+               'ses-23', 'ses-24', 'ses-25', 'ses-26']
+
 }
 
 def convert_2d(mask, nifti_data):
