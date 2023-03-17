@@ -10,6 +10,7 @@ from nilearn.glm.first_level import make_first_level_design_matrix as make_desig
 from nilearn.signal import clean as niclean
 from nipype.interfaces.io import DataGrabber
 from scipy.stats import zscore
+from sklearn.metrics import r2_score
 from utils.file_utils import ibc_get_task
 from utils.load_write import group_concat, subj_ses_dict, write_nifti
 from utils.paradigm import create_event_file
@@ -69,7 +70,7 @@ def concat_events(ev_list, tr, slicetime_ref, basis_type,
     return ev_concat
 
 
-def concat_func(func_list, tr):
+def concat_func(func_list, tr, hp_freq=0.01):
     func_concat = []
     func_len = [] # keep track of scan length
     func_str = [] # keep track of what scan is stacked on what
@@ -77,7 +78,8 @@ def concat_func(func_list, tr):
     # Loop through functional scans and stack
     for func_fp in func_list:
         func = np.loadtxt(func_fp)
-        func_clean = niclean(func, standardize=True, detrend=True, t_r=tr, high_pass=0.01)
+        func_clean = niclean(func, standardize=True, detrend=True, 
+                             t_r=tr, high_pass=hp_freq)
         func_concat.append(func_clean)
         func_n = func_clean.shape[0]
         func_len.append(func_n)
@@ -98,6 +100,23 @@ def create_regressor(ev_df, basis_type, tr, n_scan, slicetime_ref):
     design_mat = make_design_mat(frametimes, ev_df, hrf_model=basis_str, 
                                  drift_model=None)
     return design_mat
+
+
+def fused_lasso(y_i, X, edge_list, penalty):
+    # Extract index and ROI ts
+    i = y_i[0]
+    y = y_i[1]
+    # Print progress
+    print(i)
+    # Specify penalty and fit
+    penalty_fl = FusedLasso(pen_val=penalty, edgelist=edge_list)
+    fl = Glm(loss=LinReg(), penalty=penalty_fl, solver='cvxpy')
+    fl.fit(X, y)
+    # get coefficients and in-sample r2
+    y_pred = fl.predict(X)
+    fl_r2 = r2_score(y, y_pred)
+    fl_coef = fl.coef_
+    return (i, (fl_coef, fl_r2))
 
 
 def match_events(func_list, ev_list):
@@ -130,12 +149,12 @@ def run_main(subject, tr, basis_type, main_dir, n_cores, slicetime_ref):
     # Temporal concanation of task regressors
     ev_concat = concat_events(ev_list, tr, slicetime_ref,
                               basis_type, func_str, func_len)
-    reg_model = run_model(func_concat, ev_concat, n_cores)
+    coef, r2 = fit_model(func_concat, ev_concat, n_cores)
     # Write out coefficients
-    pickle.dump(reg_model, open('lin_reg.pkl', 'wb'))
+    pickle.dump([coef, r2], open(f'fl_{subject}.pkl', 'wb'))
 
 
-def run_model(func_concat, ev_concat, n_cores, penalty=0.0001):
+def fit_model(func_concat, ev_concat, n_cores, penalty=0.0001):
     # Drop intercept (don't need) and z-score
     ev_concat_z = zscore(ev_concat.drop(columns='constant'))
     n_reg = ev_concat_z.shape[1]
@@ -146,6 +165,11 @@ def run_model(func_concat, ev_concat, n_cores, penalty=0.0001):
     func_concat = func_concat.T.tolist()
     # enumerate list to keep index
     func_concat = [(i, f) for i, f in enumerate(func_concat)]
+
+    # REMOVE
+    func_concat = [func_concat[i] for i in range(12)]
+    ########
+
     print('fit fused lasso models')
     pool = Pool(processes=n_cores)
     fl_res = pool.starmap(fused_lasso, 
@@ -154,23 +178,12 @@ def run_model(func_concat, ev_concat, n_cores, penalty=0.0001):
                               repeat(edge_list),
                               repeat(penalty))
                           )
-
-
-def fused_lasso(y_i, X, edge_list, penalty):
-    # Fit Fused Lasso
-    i = y_i[0]
-    # Print progress
-    print(i)
-    y = y_i[1]
-    penalty_fl = FusedLasso(pen_val=penalty, edgelist=edge_list)
-    fl = Glm(loss=LinReg(), penalty=penalty_fl, solver='cvxpy')
-    fl.fit(X, y)
-    return (i, fl)
+    coef_mat = np.array([f[1][0] for f in fl_res])
+    r2_vec = [f[1][1] for f in fl_res]
+    return coef_mat, r2_vec
 
 
     
-
-
 
 if __name__ == '__main__':
     """Preprocess functional & anatomical scans from IBC dataset"""
