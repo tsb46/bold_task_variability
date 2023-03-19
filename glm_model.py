@@ -19,8 +19,10 @@ from yaglm.config.loss import LinReg
 from yaglm.config.penalty import Lasso, FusedLasso, GeneralizedLasso
 
 
-# Some issues found in these tasks
-task_ignore = ['task-Discount', 'task-ColumbiaCards']
+# ignore retinotopy, naturalistic films, and some tasks with problematic evs
+task_ignore = ['Bang', 'ClipsTrn', 'ClipsVal', 'ContRing', 'WedgeAnti',
+               'WedgeClock' 'Retinotopy-Wedge', 'Raiders', 'RestingState',
+               'task-Discount', 'task-ColumbiaCards']
 
 
 def find_scans(subject, main_dir):
@@ -165,10 +167,6 @@ def fit_model(func_concat, ev_concat, n_cores, penalty=0.0001):
     func_concat = func_concat.T.tolist()
     # enumerate list to keep index
     func_concat = [(i, f) for i, f in enumerate(func_concat)]
-
-    # REMOVE
-    func_concat = [func_concat[i] for i in range(12)]
-    ########
 
     print('fit fused lasso models')
     pool = Pool(processes=n_cores)
