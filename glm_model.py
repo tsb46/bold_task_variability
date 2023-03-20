@@ -4,6 +4,7 @@ import pandas as pd
 import pickle
 import os
 
+from datetime import datetime
 from itertools import repeat
 from multiprocessing import Pool
 from nilearn.glm.first_level import make_first_level_design_matrix as make_design_mat
@@ -118,7 +119,7 @@ def fused_lasso(y_i, X, edge_list, penalty):
     y_pred = fl.predict(X)
     fl_r2 = r2_score(y, y_pred)
     fl_coef = fl.coef_
-    return (i, (fl_coef, fl_r2))
+    return (i, (fl_coef, fl_r2, y_pred, y))
 
 
 def match_events(func_list, ev_list):
@@ -143,7 +144,8 @@ def match_events(func_list, ev_list):
     return ev_list_reorder
 
 
-def run_main(subject, tr, basis_type, main_dir, n_cores, slicetime_ref):
+def run_main(subject, tr, basis_type, penalty, 
+             main_dir, n_cores, slicetime_ref):
     # Find subject functional scans
     func_list, ev_list = find_scans(subject, main_dir)
     # Temporal concatenation of functional scans
@@ -151,12 +153,22 @@ def run_main(subject, tr, basis_type, main_dir, n_cores, slicetime_ref):
     # Temporal concanation of task regressors
     ev_concat = concat_events(ev_list, tr, slicetime_ref,
                               basis_type, func_str, func_len)
-    coef, r2 = fit_model(func_concat, ev_concat, n_cores)
+    coef, r2, pred, y = fit_model(func_concat, ev_concat, n_cores, penalty)
+    # Package results in dictionary
+    result_dict = {
+        'penalty': penalty,
+        'coef': coef,
+        'in_sample_r2': r2,
+        'pred': pred,
+        'y': y
+    }
+    dt = datetime.now()
+    fp_timestamp = dt.strftime('%Y-%m-%d_%H-%M-%S')
     # Write out coefficients
-    pickle.dump([coef, r2], open(f'fl_{subject}.pkl', 'wb'))
+    pickle.dump(result_dict, open(f'fl_{subject}_{fp_timestamp}.pkl', 'wb'))
 
 
-def fit_model(func_concat, ev_concat, n_cores, penalty=0.0001):
+def fit_model(func_concat, ev_concat, n_cores, penalty):
     # Drop intercept (don't need) and z-score
     ev_concat_z = zscore(ev_concat.drop(columns='constant'))
     n_reg = ev_concat_z.shape[1]
@@ -178,7 +190,9 @@ def fit_model(func_concat, ev_concat, n_cores, penalty=0.0001):
                           )
     coef_mat = np.array([f[1][0] for f in fl_res])
     r2_vec = [f[1][1] for f in fl_res]
-    return coef_mat, r2_vec
+    pred_vec = [f[1][2] for f in fl_res] 
+    y_vec = [f[1][3] for f in fl_res]
+    return coef_mat, r2_vec, pred_vec, y_vec
 
 
     
@@ -201,6 +215,12 @@ if __name__ == '__main__':
                         choices=['hrf', 'hrf3'],
                         default='hrf',
                         type=str)
+    parser.add_argument('-p', '--penalty',
+                        help='penalty for fused lasso (in float).'
+                        'Default estimate range of penalty values',
+                        required=None,
+                        default=0.0001,
+                        type=float)
     parser.add_argument('-d', '--main_dir',
                         help='directory where IBC data is stored',
                         required=False,
@@ -222,5 +242,6 @@ if __name__ == '__main__':
 
     args_dict = vars(parser.parse_args())
     run_main(args_dict['subject'], args_dict['repetition_time'], 
-             args_dict['basis_type'], args_dict['main_dir'], 
-             args_dict['n_cores'], args_dict['slicetime_ref'])
+             args_dict['basis_type'], args_dict['penalty'],
+             args_dict['main_dir'], args_dict['n_cores'], 
+             args_dict['slicetime_ref'])
