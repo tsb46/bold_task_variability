@@ -158,6 +158,7 @@ def run_main(subject, tr, basis_type, penalty,
     result_dict = {
         'penalty': penalty,
         'coef': coef,
+        'column_labels': ev_concat.columns,
         'in_sample_r2': r2,
         'pred': pred,
         'y': y

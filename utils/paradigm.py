@@ -18,7 +18,7 @@ def create_event_file(event_fp, task):
         df_events['trial_type'] = df_events['trial_type'].replace(preference_dict)
     else:
         df_events = make_paradigm(event_fp, task_str)
-
+    
     # Special processing for certain tasks
     if task_str == 'HcpWm':
         replace_dict = {'0': 'Zero', '2': 'Two'}
